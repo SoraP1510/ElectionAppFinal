@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            padding: 20px;
+            background: #ecf0f1;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+        }
+
+        th {
+            background: #34495e;
+            color: white;
+        }
+
+        .btn-del {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .form-add {
+            background: #f9f9f9;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        input[type="text"] {
+            padding: 8px;
+            width: 60%;
+            margin-right: 10px;
+        }
+
+        .btn-add {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .btn-reset {
+            background: #f39c12;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+
+        .logout {
+            float: right;
+            color: red;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="/logout" class="logout">ออกจากระบบ</a>
+        <h2>⚙️ จัดการรายชื่อผู้สมัคร</h2>
+
+        <table>
+            <tr>
+                <th>เบอร์</th>
+                <th>ชื่อพรรค / ผู้สมัคร</th>
+                <th>คะแนนปัจจุบัน</th>
+                <th>จัดการ</th>
+            </tr>
+            {% for cand in candidates %}
+            <tr>
+                <td>{{ cand.candidate_id }}</td>
+                <td>{{ cand.candidate_name }}</td>
+                <td>{{ cand.vote_count }}</td>
+                <td>
+                    <form action="/admin/delete_candidate" method="POST"
+                        onsubmit="return confirm('ยืนยันลบ {{ cand.candidate_name }}?');">
+                        <input type="hidden" name="id" value="{{ cand.candidate_id }}">
+                        <button type="submit" class="btn-del">ลบ</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <div class="form-add">
+            <h3>➕ เพิ่มผู้สมัครใหม่</h3>
+            <form action="/admin/add_candidate" method="POST">
+                <input type="text" name="candidate_name" placeholder="ชื่อพรรค / ชื่อผู้สมัคร" required>
+                <button type="submit" class="btn-add">บันทึก</button>
+            </form>
+        </div>
+
+        <hr>
+        <h3>⚠️ โซนอันตราย</h3>
+        <form action="/admin/reset_votes" method="POST"
+            onsubmit="return confirm('คำเตือน: คะแนนและสิทธิ์การโหวตของทุกคนจะถูกรีเซ็ต ยืนยันหรือไม่?');">
+            <button type="submit" class="btn-reset" style="background: #c0392b;">🔄
+                รีเซ็ตระบบเลือกตั้งใหม่ทั้งหมด</button>
+        </form>
+
+        <br>
+        <a href="/">← กลับหน้าหลัก</a>
+    </div>
+</body>
+
+</html>

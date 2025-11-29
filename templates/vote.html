@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <title>คูหาเลือกตั้งออนไลน์</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: #f0f4f8;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .header {
+            margin-bottom: 30px;
+        }
+
+        .card-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            width: 220px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border: 2px solid #3498db;
+        }
+
+        .number {
+            height: 100px;
+            background: #ddd;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .btn-vote {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+            font-size: 16px;
+        }
+
+        .btn-vote:hover {
+            background-color: #219150;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h2>🗳️ บัตรเลือกตั้งประธานนักเรียน</h2>
+        <p>สวัสดีคุณ <b>{{ name }} {{ surname }}</b> | สถานะ: <span style="color:green">ยืนยันตัวตนแล้ว</span></p>
+    </div>
+    <div class="card-container">
+        {% for cand in candidates %}
+        <div class="card">
+            <div class="number">{{ cand.candidate_id }}</div>
+            <h3>{{ cand.candidate_name }}</h3>
+            <form action="/submit_vote" method="POST"
+                onsubmit="return confirm('ยืนยันจะเลือก {{ cand.candidate_name }} ?');">
+                <input type="hidden" name="candidate_id" value="{{ cand.candidate_id }}">
+                <button type="submit" class="btn-vote">❌ กากบาท</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+
+</html>

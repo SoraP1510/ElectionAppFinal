@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ลงทะเบียนเลือกตั้ง</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background: #eef2f3;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .box {
+            background: white;
+            max-width: 500px;
+            margin: auto;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn-main {
+            background: #2ecc71;
+            color: white;
+            width: 100%;
+            font-size: 18px;
+        }
+
+        video {
+            border-radius: 10px;
+            margin: 10px 0;
+            width: 100%;
+            /* กลับด้านเพื่อให้เหมือนกระจกเงา User จะได้ไม่งงซ้ายขวา */
+            transform: scaleX(-1); 
+        }
+
+        /* ตกแต่งข้อความคำสั่ง */
+        #instruction {
+            font-size: 20px;
+            color: #3498db;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        #loader {
+            display: none;
+            color: #e67e22;
+            font-weight: bold;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        #register-result {
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0fff4;
+            border: 2px dashed #2ecc71;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <h2>📝 ลงทะเบียนผู้มีสิทธิ์เลือกตั้ง</h2>
+        <form>
+            <input type="text" id="name" name="name" placeholder="ชื่อ" required><br>
+            <input type="text" id="surname" name="surname" placeholder="นามสกุล" required><br>
+            <input type="text" id="phone" name="phone" placeholder="เบอร์โทรศัพท์" required><br>
+            
+            <p id="instruction">👉 ท่าที่ 1: กรุณามองหน้าตรง</p>
+
+            <video id="video" autoplay playsinline></video>
+            
+            <p id="status">ถ่ายแล้ว (0/8) ภาพ</p>
+            
+            <button type="button" onclick="capture()" style="background:#3498db; color:white;">📸 ถ่ายภาพ</button>
+            
+            <button type="button" class="btn-main" disabled id="submitBtn" onclick="submitData()">ยืนยันการลงทะเบียน</button>
+            
+            <div id="loader">⏳ กำลังประมวลผลและเทรนโมเดล...<br>(กรุณารอสักครู่ ห้ามปิดหน้าจอ)</div>
+
+            <div id="register-result">
+                <h3 style="color: #27ae60;">✅ ลงทะเบียนสำเร็จ!</h3>
+                <p>ระบบตรวจพบใบหน้าของคุณดังนี้:</p>
+                <img id="detected-face-img" src="" style="width: 150px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <p style="color: #7f8c8d; font-size: 14px; margin-top:10px;">กำลังนำท่านกลับหน้าหลักใน 3 วินาที...</p>
+            </div>
+        </form>
+        <br><a href="/">กลับหน้าหลัก</a>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+        const instruction = document.getElementById('instruction');
+        const submitBtn = document.getElementById('submitBtn');
+        const loader = document.getElementById('loader');
+        const resultDiv = document.getElementById('register-result');
+        const resultImg = document.getElementById('detected-face-img');
+        
+        let images = [];
+        const TOTAL_IMAGES = 8; // กำหนดจำนวนรูปเป็น 8
+        
+        // รายการท่าทาง
+        const instructionsList = [
+            "ท่าที่ 1: กรุณามองหน้าตรง",
+            "ท่าที่ 2: หันซ้ายเล็กน้อย",
+            "ท่าที่ 3: หันขวาเล็กน้อย",
+            "ท่าที่ 4: ก้มหน้า",
+            "ท่าที่ 5: เงยหน้า",
+            "ท่าที่ 6: ยิ้ม",
+            "ท่าที่ 7: หลับตา",
+            "ท่าที่ 8: ตาโต",
+        ];
+        
+        // เปิดกล้อง
+        navigator.mediaDevices.getUserMedia({ video: true }).then(s => video.srcObject = s);
+
+        function capture() {
+            if (images.length >= TOTAL_IMAGES) return;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth; 
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            canvas.toBlob(blob => {
+                images.push(blob);
+                status.innerText = `ถ่ายแล้ว (${images.length}/${TOTAL_IMAGES}) ภาพ`;
+                
+                // อัปเดตคำสั่งท่าทางถัดไป
+                if (images.length < TOTAL_IMAGES) {
+                    instruction.innerText = instructionsList[images.length];
+                    instruction.style.color = "#3498db"; // สีฟ้า
+                } else {
+                    // ครบ 5 รูป
+                    instruction.innerText = "✅ ถ่ายครบทุกท่าแล้ว! กรุณากดปุ่มยืนยัน";
+                    instruction.style.color = "green"; // สีเขียว
+                    status.style.color = "green";
+                    submitBtn.disabled = false;
+                }
+            }, 'image/jpeg');
+        }
+
+        function submitData() {
+            const name = document.getElementById('name').value;
+            const surname = document.getElementById('surname').value;
+            const phone = document.getElementById('phone').value;
+
+            if (!name || !surname || !phone) {
+                alert("กรุณากรอกข้อมูลให้ครบทุกช่อง");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('surname', surname);
+            formData.append('phone', phone);
+            
+            images.forEach((img, i) => formData.append('image_' + i, img, `img_${i}.jpg`));
+
+            // ซ่อนปุ่มและโชว์ Loader
+            submitBtn.style.display = 'none';
+            loader.style.display = 'block';
+
+            fetch('/register', { method: 'POST', body: formData })
+                .then(res => res.json())
+                .then(data => {
+                    // ซ่อน Loader เมื่อได้ผลลัพธ์
+                    loader.style.display = 'none';
+
+                    if (data.status === 'success') {
+                        // 1. แสดงกล่องผลลัพธ์
+                        resultDiv.style.display = 'block';
+                        
+                        // 2. เอารูป Base64 ใส่ใน img tag
+                        if (data.example_image) {
+                            resultImg.src = 'data:image/jpeg;base64,' + data.example_image;
+                        }
+
+                        // 3. รอ 3 วินาที แล้วค่อยย้ายหน้า
+                        setTimeout(() => {
+                            window.location.href = data.redirect_url;
+                        }, 3000);
+
+                    } else {
+                        // กรณี Error
+                        alert("❌ Error: " + data.message);
+                        submitBtn.style.display = 'block';
+                    }
+                })
+                .catch(err => {
+                    loader.style.display = 'none';
+                    submitBtn.style.display = 'block';
+                    alert("Connection Error: " + err);
+                });
+        }
+    </script>
+</body>
+</html>

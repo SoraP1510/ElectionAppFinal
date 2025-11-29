@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>ระบบเลือกตั้ง - Face Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 350px;
+        }
+
+        video {
+            border-radius: 10px;
+            margin-bottom: 10px;
+            width: 100%;
+            transform: scaleX(-1);
+        }
+
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .admin-link {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #999;
+            text-decoration: none;
+        }
+
+        .error {
+            color: red;
+            margin-top: 10px;
+            font-weight: bold;
+            min-height: 24px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>🗳️ เข้าสู่ระบบเลือกตั้ง</h2>
+        <input type="text" id="phone" placeholder="กรอกเบอร์โทรศัพท์">
+        <video id="video" autoplay></video>
+        <button class="btn-primary" onclick="capture()">📸 ถ่ายภาพ & ยืนยันตัวตน</button>
+        <button class="btn-secondary" onclick="location.href='/register'">📝 ลงทะเบียนหน้าใหม่</button>
+        <p class="error" id="error-msg">{{ result }}</p>
+        <canvas id="canvas" style="display: none;"></canvas>
+        <br>
+        <a href="/admin" class="admin-link">Admin Login</a>
+    </div>
+    <script>
+        const video = document.getElementById('video');
+        const errorMsg = document.getElementById('error-msg');
+
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => video.srcObject = stream)
+            .catch(err => { errorMsg.innerText = "ไม่สามารถเปิดกล้องได้: " + err; });
+
+        function capture() {
+            const phone = document.getElementById('phone').value;
+            if (!phone) { errorMsg.innerText = "กรุณากรอกเบอร์โทร"; return; }
+
+            errorMsg.innerText = "⏳ กำลังตรวจสอบ...";
+            const canvas = document.getElementById('canvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('phone', phone);
+                formData.append('image', blob, 'face.png');
+
+                fetch('/', { method: 'POST', body: formData })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            errorMsg.innerText = "❌ " + data.message;
+                        }
+                    })
+                    .catch(err => { errorMsg.innerText = "Error: " + err; });
+            });
+        }
+    </script>
+</body>
+
+</html>
