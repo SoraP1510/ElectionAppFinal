@@ -16,9 +16,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 
-# ==========================================
-# 1. CONFIGURATION
-# ==========================================
+# CONFIGURATION
 load_dotenv()
 base_path = './Face_Recog_App'
 user_img_dir = f'{base_path}/static/uploads/UserImages'
@@ -44,9 +42,7 @@ if not os.path.exists(vote_file):
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
-# ==========================================
-# 2. HELPER FUNCTIONS
-# ==========================================
+# HELPER FUNCTIONS
 
 def cv2_imread_utf8(path):
     try:
@@ -61,7 +57,6 @@ def cv2_imread_utf8(path):
         return None
 
 def detect_and_crop_face(image_array):
-    """ฟังก์ชันนี้ใช้สำหรับตัดหน้าเพื่อเตรียมเทรน หรือทำนาย (คืนค่ารูป Clean)"""
     gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
     if len(faces) == 0: return None
@@ -75,7 +70,7 @@ def load_data_rgb(data_path, img_size=(100,100)):
     labels = []
     label_map = {}
     label_id = 0
-    print(f"📂 กำลังสแกนโฟลเดอร์: {data_path}")
+    print(f"กำลังสแกนโฟลเดอร์: {data_path}")
     for folder in sorted(os.listdir(data_path)):
         folder_path = os.path.join(data_path, folder)
         if not os.path.isdir(folder_path): continue
@@ -105,9 +100,7 @@ def process_upload_to_cv2(file_storage):
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     return img
 
-# ==========================================
-# 4. FLASK ROUTES
-# ==========================================
+# FLASK ROUTES
 
 @app.route('/register', methods=['GET'])
 def register_get():
@@ -132,26 +125,25 @@ def register_post():
         valid_images_count = 0
         example_image_b64 = None  # ตัวแปรเก็บรูปตัวอย่างที่มีกรอบ
 
-        for i in range(15):
+        for i in range(8):
             file = request.files.get(f'image_{i}')
             if file:
                 img = process_upload_to_cv2(file)
                 if img is not None:
-                    # --- Logic ใหม่: จับหน้าเองในลูปนี้ เพื่อแยกส่วนแสดงผลกับส่วนบันทึก ---
+                    # จับหน้า
                     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
 
                     if len(faces) > 0:
-                        # เอาหน้าใหญ่สุด
                         (x, y, w, h) = max(faces, key=lambda f: f[2] * f[3])
                         
-                        # 1. ส่วนบันทึกลง Disk (ต้อง Clean ห้ามมีกรอบ)
+                        # 1. ส่วนบันทึกลง Disk
                         face_roi = img[y:y+h, x:x+w]
                         face_roi = cv2.resize(face_roi, (100, 100))
                         cv2.imwrite(os.path.join(save_path, f'img_{i+1}.jpg'), face_roi)
                         valid_images_count += 1
 
-                        # 2. ส่วนสร้างภาพตัวอย่าง (เฉพาะรูปแรกที่เจอหน้า) เพื่อส่งกลับไปโชว์
+                        # 2. ส่วนสร้างภาพตัวอย่าง
                         if example_image_b64 is None:
                             debug_img = img.copy()
                             # วาดกรอบสีเขียวลงในรูป copy
@@ -160,10 +152,10 @@ def register_post():
                             example_image_b64 = base64.b64encode(buffer).decode('utf-8')
 
         if valid_images_count == 0:
-             return jsonify({'status': 'error', 'message': "ไม่พบใบหน้าในรูปภาพที่ส่งมา กรุณาถ่ายใหม่ให้ชัดเจน"}), 400
+            return jsonify({'status': 'error', 'message': "ไม่พบใบหน้าในรูปภาพที่ส่งมา กรุณาถ่ายใหม่ให้ชัดเจน"}), 400
         
         new_row = pd.DataFrame([[name, surname, phone, save_path, 0]], 
-                               columns=['name', 'surname', 'phone', 'folder', 'has_voted'])
+                            columns=['name', 'surname', 'phone', 'folder', 'has_voted'])
         df = pd.concat([df, new_row], ignore_index=True)
         df.to_csv(csv_file, index=False)
         print(f"✅ บันทึกข้อมูล {name} สำเร็จ ({valid_images_count} รูป)")
@@ -174,10 +166,10 @@ def register_post():
         if len(all_images) > 0:
             num_classes = len(label_map)
             if num_classes > 1:
-                 trainX, testX, trainY, testY = train_test_split(all_images, all_labels, test_size=0.3, stratify=all_labels, random_state=42)
+                trainX, testX, trainY, testY = train_test_split(all_images, all_labels, test_size=0.3, stratify=all_labels, random_state=42)
             else:
-                 trainX, trainY = all_images, all_labels
-                 testX, testY = all_images, all_labels 
+                trainX, trainY = all_images, all_labels
+                testX, testY = all_images, all_labels 
 
             model = Sequential([
                 tf.keras.Input(shape=(100, 100, 3)),
@@ -241,11 +233,10 @@ def index():
             expected_folder = os.path.basename(user_row.iloc[0]['folder'])
             
             img_cv = process_upload_to_cv2(file)
-            # ตัดหน้าอย่างเดียว ไม่ต้องวาดกรอบ
             cropped_face = detect_and_crop_face(img_cv)
 
             if cropped_face is None:
-                 return jsonify({'status': 'error', 'message': "ไม่พบใบหน้าในกล้อง กรุณาถ่ายใหม่ให้ชัดเจน"})
+                return jsonify({'status': 'error', 'message': "ไม่พบใบหน้าในกล้อง กรุณาถ่ายใหม่ให้ชัดเจน"})
 
             img_rgb = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2RGB)
             img_normalized = img_rgb / 255.0
@@ -276,9 +267,6 @@ def index():
 
     return render_template('index.html')
 
-# ==========================================
-# (ส่วนอื่นๆ เหมือนเดิม: vote, admin, main)
-# ==========================================
 @app.route('/vote')
 def vote_page():
     if 'phone' not in session: return redirect(url_for('index'))
