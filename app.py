@@ -56,6 +56,18 @@ def cv2_imread_utf8(path):
         print(f"Error reading {path}: {e}")
         return None
 
+def cv2_imwrite_utf8(path, img):
+    try:
+        is_success, im_buf_arr = cv2.imencode(".jpg", img)
+        if is_success:
+            with open(path, "wb") as f:
+                im_buf_arr.tofile(f)
+            return True
+        return False
+    except Exception as e:
+        print(f"Save Error: {e}")
+        return False
+
 def detect_and_crop_face(image_array):
     gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
@@ -123,36 +135,49 @@ def register_post():
         os.makedirs(save_path, exist_ok=True)
 
         valid_images_count = 0
-        example_image_b64 = None  # ตัวแปรเก็บรูปตัวอย่างที่มีกรอบ
+        example_image_b64 = None 
 
         for i in range(8):
             file = request.files.get(f'image_{i}')
             if file:
                 img = process_upload_to_cv2(file)
                 if img is not None:
-                    # จับหน้า
-                    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+                    # 1. พยายามตัดเฉพาะหน้าก่อน
+                    face_roi = detect_and_crop_face(img)
+                    
+                    # 2. ถ้าหาหน้าไม่เจอ ให้ใช้รูปเต็มแทน (Fallback)
+                    if face_roi is None:
+                        # print(f"⚠️ รูปที่ {i+1} ไม่เจอกรอบหน้า -> บันทึกรูปเต็มแทน")
+                        try:
+                            face_roi = cv2.resize(img, (100, 100))
+                        except:
+                            face_roi = None
 
-                    if len(faces) > 0:
-                        (x, y, w, h) = max(faces, key=lambda f: f[2] * f[3])
+                    # 3. บันทึกรูป
+                    if face_roi is not None:
+                        save_success = cv2_imwrite_utf8(os.path.join(save_path, f'img_{i+1}.jpg'), face_roi)
+                        if save_success:
+                            valid_images_count += 1
                         
-                        # 1. ส่วนบันทึกลง Disk
-                        face_roi = img[y:y+h, x:x+w]
-                        face_roi = cv2.resize(face_roi, (100, 100))
-                        cv2.imwrite(os.path.join(save_path, f'img_{i+1}.jpg'), face_roi)
-                        valid_images_count += 1
-
-                        # 2. ส่วนสร้างภาพตัวอย่าง
+                        # [จุดที่แก้] สร้างรูปตัวอย่าง + วาดกรอบสี่เหลี่ยมกลับมา
                         if example_image_b64 is None:
                             debug_img = img.copy()
-                            # วาดกรอบสีเขียวลงในรูป copy
-                            cv2.rectangle(debug_img, (x, y), (x+w, y+h), (0, 255, 0), 3)
+                            # Detect อีกครั้งเพื่อเอาพิกัดมาวาดรูป
+                            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                            faces = face_cascade.detectMultiScale(gray, 1.1, 5)
+                            
+                            if len(faces) > 0:
+                                # ถ้าเจอหน้า วาดกรอบสีเขียว
+                                (x, y, w, h) = max(faces, key=lambda f: f[2] * f[3])
+                                cv2.rectangle(debug_img, (x, y), (x+w, y+h), (0, 255, 0), 3)
+                            
+                            # แปลงเป็น Base64 ส่งกลับไปโชว์
                             _, buffer = cv2.imencode('.jpg', debug_img)
                             example_image_b64 = base64.b64encode(buffer).decode('utf-8')
 
         if valid_images_count == 0:
-            return jsonify({'status': 'error', 'message': "ไม่พบใบหน้าในรูปภาพที่ส่งมา กรุณาถ่ายใหม่ให้ชัดเจน"}), 400
+            shutil.rmtree(save_path, ignore_errors=True)
+            return jsonify({'status': 'error', 'message': "ไม่สามารถประมวลผลรูปภาพได้เลย กรุณาถ่ายใหม่"}), 400
         
         new_row = pd.DataFrame([[name, surname, phone, save_path, 0]], 
                             columns=['name', 'surname', 'phone', 'folder', 'has_voted'])
