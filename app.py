@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 
+
 # CONFIGURATION
 load_dotenv()
 base_path = './Face_Recog_App'
@@ -68,6 +69,93 @@ def cv2_imwrite_utf8(path, img):
         print(f"Save Error: {e}")
         return False
 
+def normalize_all_existing_images():
+    """Normalize รูปภาพเก่าทั้งหมดที่มีอยู่แล้ว"""
+    print("\n🔄 เริ่ม normalize รูปภาพเก่าทั้งหมด...")
+    total_normalized = 0
+    total_errors = 0
+    
+    if not os.path.exists(user_img_dir):
+        print(f"❌ ไม่พบโฟลเดอร์: {user_img_dir}")
+        return {'success': False, 'message': 'ไม่พบโฟลเดอร์รูปภาพ'}
+    
+    # วนลูปทุกโฟลเดอร์ผู้ใช้
+    for folder_name in os.listdir(user_img_dir):
+        folder_path = os.path.join(user_img_dir, folder_name)
+        
+        # ข้ามไฟล์ที่ไม่ใช่โฟลเดอร์
+        if not os.path.isdir(folder_path):
+            continue
+        
+        # ข้ามไฟล์ CSV
+        if folder_name.endswith('.csv'):
+            continue
+        
+        print(f"  📁 กำลัง normalize: {folder_name}")
+        
+        # วนลูปทุกรูปภาพในโฟลเดอร์
+        for img_name in os.listdir(folder_path):
+            if not img_name.lower().endswith(('.jpg', '.jpeg', '.png')):
+                continue
+            
+            img_path = os.path.join(folder_path, img_name)
+            
+            try:
+                # อ่านรูปภาพ
+                img = cv2_imread_utf8(img_path)
+                if img is None:
+                    print(f"    ⚠️ ไม่สามารถอ่านไฟล์: {img_name}")
+                    total_errors += 1
+                    continue
+                
+                # Normalize รูปภาพ
+                normalized_img = normalize_image_for_camera_variation(img)
+                
+                # บันทึกทับไฟล์เดิม
+                if cv2_imwrite_utf8(img_path, normalized_img):
+                    total_normalized += 1
+                    print(f"    ✅ Normalize: {img_name}")
+                else:
+                    print(f"    ❌ ไม่สามารถบันทึก: {img_name}")
+                    total_errors += 1
+                    
+            except Exception as e:
+                print(f"    ❌ Error processing {img_name}: {e}")
+                total_errors += 1
+    
+    result = {
+        'success': True,
+        'total_normalized': total_normalized,
+        'total_errors': total_errors,
+        'message': f'Normalize สำเร็จ {total_normalized} รูป, เกิดข้อผิดพลาด {total_errors} รูป'
+    }
+    
+    print(f"\n✅ เสร็จสิ้น: {result['message']}")
+    return result
+
+def normalize_image_for_camera_variation(img):
+    """Normalize ภาพเพื่อลดผลกระทบจากกล้องต่างกัน"""
+    # แปลงเป็น LAB color space เพื่อแยก brightness ออกจากสี
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    
+    # ใช้ CLAHE (Contrast Limited Adaptive Histogram Equalization) 
+    # เพื่อ normalize brightness/contrast ให้เหมือนกัน
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    l = clahe.apply(l)
+    
+    # รวมกลับเป็น LAB แล้วแปลงกลับเป็น BGR
+    lab = cv2.merge([l, a, b])
+    normalized = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    
+    # ปรับ gamma correction เพิ่มเติมเพื่อ normalize brightness
+    gamma = 1.2
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    normalized = cv2.LUT(normalized, table)
+    
+    return normalized
+
 def detect_and_crop_face(image_array):
     gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
@@ -75,6 +163,10 @@ def detect_and_crop_face(image_array):
     (x, y, w, h) = max(faces, key=lambda f: f[2] * f[3])
     face_roi = image_array[y:y+h, x:x+w]
     face_roi = cv2.resize(face_roi, (100, 100))
+    
+    # Normalize เพื่อลดผลกระทบจากกล้องต่างกัน
+    face_roi = normalize_image_for_camera_variation(face_roi)
+    
     return face_roi
 
 def load_data_rgb(data_path, img_size=(100,100)):
@@ -93,6 +185,8 @@ def load_data_rgb(data_path, img_size=(100,100)):
             img_path = os.path.join(folder_path, img_name)
             img = cv2_imread_utf8(img_path)
             if img is not None:
+                # Normalize ภาพเพื่อลดผลกระทบจากกล้องต่างกัน
+                img = normalize_image_for_camera_variation(img)
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 img = cv2.resize(img, img_size)
                 images.append(img)
@@ -206,7 +300,7 @@ def register_post():
             ])
             
             model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-            model.fit(trainX, trainY, epochs=10, batch_size=16, verbose=1)
+            model.fit(trainX, trainY, epochs=15, batch_size=16, verbose=1)
             
             model_dir = f'{base_path}/model'
             os.makedirs(model_dir, exist_ok=True)
@@ -362,6 +456,26 @@ def delete_candidate():
     df = df[df['candidate_id'] != c_id]
     df.to_csv(vote_file, index=False)
     return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/normalize_images', methods=['POST'])
+def normalize_images():
+    """Route สำหรับ normalize รูปภาพเก่าทั้งหมด (ต้องเป็น admin)"""
+    if not session.get('is_admin'):
+        return jsonify({'status': 'error', 'message': 'ต้องเป็น admin'}), 403
+    
+    try:
+        result = normalize_all_existing_images()
+        if result['success']:
+            return jsonify({
+                'status': 'success',
+                'message': result['message'],
+                'total_normalized': result['total_normalized'],
+                'total_errors': result['total_errors']
+            })
+        else:
+            return jsonify({'status': 'error', 'message': result['message']}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'เกิดข้อผิดพลาด: {str(e)}'}), 500
 
 @app.route('/admin/reset_votes', methods=['POST'])
 def reset_votes():
